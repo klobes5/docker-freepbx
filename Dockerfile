@@ -158,7 +158,7 @@ RUN echo "Package: libxml2*" > /etc/apt/preferences.d/libxml2 && \
                     wget \
                     whois \
                     xmlstarlet && \
-    \
+					    \
 ### Add users
     addgroup --gid 2600 asterisk && \
     adduser --uid 2600 --gid 2600 --gecos "Asterisk User" --disabled-password asterisk && \
@@ -279,6 +279,21 @@ RUN echo "Package: libxml2*" > /etc/apt/preferences.d/libxml2 && \
 ### Zabbix setup
     echo '%zabbix ALL=(asterisk) NOPASSWD:/usr/sbin/asterisk' >> /etc/sudoers && \
     \
+
+### Apache2 Setup for asterisk bmp serve and cgi-bin for rss2cisco service script
+    mkdir -p /var/cgi-bin && \
+    mkdir -p /etc/apache2 && \
+    apt-get update && \
+    apt-get install -y libapache2-mod-perl2 && \
+    ln -s /etc/apache2/mods-available/cgid.load /etc/apache2/mods-enabled/ && \
+    ln -s /etc/apache2/mods-available/cgid.conf /etc/apache2/mods-enabled/ && \
+    curl -L http://cpanmin.us | perl - App::cpanminus && \
+    cpanm install LWP::Simple HTML::Parser HTML::Tagset URI XML::RAI Date::Format XML::RSS::Parser XML::Elemental XML::NamespaceSupport Class::ErrorHandler Class::XPath CGI && \
+    sed  -i '/DocumentRoot/a \\tScriptAlias /cgi-bin/ /var/cgi-bin/\n\t<Directory "/var/cgi-bin">\n\t\tAllowOverride None\n\t\tOptions +ExecCGI -MultiViews +SymLinksIfOwnerMatch\n\t\tRequire all granted\n\t</Directory>\n' /etc/apache2/sites-enabled/000-default.conf && \
+    a2enmod cgi && \
+    mkdir -p /var/www/html && \
+	\
+
 ### Setup for data persistence
     mkdir -p /assets/config/var/lib/ /assets/config/home/ && \
     mv /home/asterisk /assets/config/home/ && \
@@ -299,10 +314,28 @@ RUN echo "Package: libxml2*" > /etc/apt/preferences.d/libxml2 && \
     rm -rf /var/spool/asterisk && \
     ln -s /data/var/spool/asterisk /var/spool/asterisk && \
     rm -rf /etc/asterisk && \
-    ln -s /data/etc/asterisk /etc/asterisk
+    ln -s /data/etc/asterisk /etc/asterisk && \
+    \
+
+### TFTP setup for tftpboot Cisco IP Phone 7940
+    printf '#!/bin/sh\nexit 0' > /usr/sbin/policy-rc.d && \
+    apt-get update && \
+    apt-get install -y tftp tftpd-hpa && \ 
+    mkdir -p /var/lib/tftpboot && \
+    chown tftp:tftp /var/lib/tftpboot && \
+    sed -i '/TFTP_ADDRESS/d' /etc/default/tftpd-hpa && \
+    sed -i '/TFTP_DIRECTORY/a TFTP_ADDRESS=":69"' /etc/default/tftpd-hpa && \
+    sed -i '/TFTP_DIRECTORY/d' /etc/default/tftpd-hpa && \
+    sed -i '/TFTP_ADDRESS/a TFTP_DIRECTORY="/var/lib/tftpboot"' /etc/default/tftpd-hpa && \
+    service apache2 restart && \
+    /etc/init.d/tftpd-hpa restart
+
 
 ### Networking configuration
-EXPOSE 80 443 4445 4569 5060/udp 5160/udp 5061 5161 8001 8003 8008 8009 8025 ${RTP_START}-${RTP_FINISH}/udp
+EXPOSE 69 80 443 4445 4569 5060/udp 5160/udp 5061 5161 8001 8003 8008 8009 8025 ${RTP_START}-${RTP_FINISH}/udp
 
 ### Files add
 ADD install /
+ADD tftpboot /var/lib/tftpboot
+ADD cgi-bin /var/cgi-bin
+ADD image /var/www/html

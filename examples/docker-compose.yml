@@ -9,6 +9,8 @@ services:
      #- 80:80
      #### If you want SSL Support and not using a reverse proxy
      #- 443:443
+      - 69:69  # TFTP server port for Cisco IP Phone 7940 tftp boot
+      - 80:80  # Apache2 Server port
       - 5060:5060/udp
       - 5160:5160/udp
       - 18000-18100:18000-18100/udp
